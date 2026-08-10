@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArmSight — Arm64 ML Model Optimization Agent</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --surface-hover: #21262d;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-dim: #8b949e;
+            --accent: #00d4ff;
+            --accent-dim: #0099bb;
+            --green: #3fb950;
+            --yellow: #d29922;
+            --red: #f85149;
+            --purple: #a371f7;
+            --radius: 8px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 2rem 0;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.3rem;
+        }
+        .header p { color: var(--text-dim); font-size: 1.1rem; }
+        .header .badges { margin-top: 0.8rem; }
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.7rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin: 0 0.2rem;
+            border: 1px solid var(--border);
+            background: var(--surface);
+        }
+        .badge-accent { border-color: var(--accent-dim); color: var(--accent); }
+
+        /* Upload section */
+        .upload-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 2.5rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(0, 212, 255, 0.05);
+        }
+        .upload-zone input[type="file"] { display: none; }
+        .upload-zone p { color: var(--text-dim); margin-top: 0.5rem; }
+        .upload-zone .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+        .btn {
+            display: inline-block;
+            padding: 0.6rem 1.5rem;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            background: var(--surface-hover);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            margin: 0.3rem;
+        }
+        .btn:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-dim), var(--accent));
+            color: #000;
+            border: none;
+            font-weight: 600;
+        }
+        .btn-primary:hover { opacity: 0.9; color: #000; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Action buttons */
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+        }
+
+        /* Results */
+        .results { display: none; }
+        .results.active { display: block; }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .card h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .card h2 .icon { color: var(--accent); }
+
+        /* Metrics grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        .metric {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem;
+        }
+        .metric .label { color: var(--text-dim); font-size: 0.85rem; text-transform: uppercase; }
+        .metric .value { font-size: 1.5rem; font-weight: 700; margin-top: 0.3rem; }
+        .metric .value.green { color: var(--green); }
+        .metric .value.accent { color: var(--accent); }
+        .metric .value.yellow { color: var(--yellow); }
+
+        /* Comparison table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .comparison-table th, .comparison-table td {
+            padding: 0.7rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        .comparison-table th { color: var(--text-dim); font-size: 0.85rem; text-transform: uppercase; }
+        .comparison-table .improvement { color: var(--green); font-weight: 600; }
+        .comparison-table .metric-name { color: var(--text-dim); }
+
+        /* Recommendations */
+        .rec {
+            background: var(--bg);
+            border-left: 3px solid var(--accent);
+            border-radius: 0 var(--radius) var(--radius) 0;
+            padding: 1rem 1.2rem;
+            margin-bottom: 0.8rem;
+        }
+        .rec.high { border-left-color: var(--red); }
+        .rec.medium { border-left-color: var(--yellow); }
+        .rec.info { border-left-color: var(--text-dim); }
+        .rec-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .rec-header h3 { font-size: 1rem; }
+        .priority-tag {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 8px;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        .priority-tag.high { background: rgba(248, 81, 73, 0.2); color: var(--red); }
+        .priority-tag.medium { background: rgba(210, 153, 34, 0.2); color: var(--yellow); }
+        .priority-tag.info { background: rgba(139, 148, 158, 0.2); color: var(--text-dim); }
+        .rec p { color: var(--text-dim); font-size: 0.9rem; }
+        .rec .arm-benefit {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: var(--surface);
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        .rec .arm-benefit strong { color: var(--accent); }
+
+        /* MCP tools */
+        .mcp-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        .mcp-tool {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem;
+        }
+        .mcp-tool h3 { font-size: 0.95rem; color: var(--accent); margin-bottom: 0.3rem; font-family: monospace; }
+        .mcp-tool p { font-size: 0.85rem; color: var(--text-dim); }
+
+        /* Code block */
+        pre {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        code { font-family: 'SF Mono', 'Fira Code', monospace; }
+
+        /* Loader */
+        .loader {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        .loader.active { display: block; }
+        .spinner {
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loader p { color: var(--text-dim); }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 2rem 0;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border);
+        }
+        .footer a { color: var(--accent); text-decoration: none; }
+
+        .section-title {
+            font-size: 1.3rem;
+            margin: 2rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <h1>ArmSight</h1>
+            <p>Autonomous AI Agent for Arm64 ML Model Inference Optimization</p>
+            <div class="badges">
+                <span class="badge badge-accent">ONNX Runtime</span>
+                <span class="badge">INT8 Quantization</span>
+                <span class="badge">MCP Server Pattern</span>
+                <span class="badge">Arm64 / Graviton</span>
+                <span class="badge">NEON SIMD</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <div class="upload-zone" id="dropZone">
+                <div class="icon">📦</div>
+                <p><strong>Drop your ONNX model here</strong> or click to browse</p>
+                <input type="file" id="fileInput" accept=".onnx">
+            </div>
+            <div id="fileInfo" style="margin-top: 1rem; color: var(--text-dim);"></div>
+            <div class="actions">
+                <button class="btn btn-primary" id="btnAnalyze" disabled>Analyze Model</button>
+                <button class="btn" id="btnRecommend" disabled>Recommend Optimizations</button>
+                <button class="btn" id="btnQuantize" disabled>Quantize (INT8)</button>
+                <button class="btn" id="btnFull" disabled>Full Pipeline</button>
+            </div>
+            <div style="margin-top: 1rem;">
+                <button class="btn" id="btnExample" style="font-size: 0.85rem;">Try with example model (auto-generates small ONNX)</button>
+            </div>
+        </div>
+
+        <!-- Loader -->
+        <div class="loader" id="loader">
+            <div class="spinner"></div>
+            <p id="loaderText">Processing...</p>
+        </div>
+
+        <!-- Results -->
+        <div class="results" id="results"></div>
+
+        <!-- MCP Tools Section (always visible) -->
+        <h2 class="section-title">🛠️ MCP Tools — Agent Interface</h2>
+        <p style="color: var(--text-dim); margin-bottom: 1rem;">ArmSight exposes its capabilities as MCP-compatible tools that an AI agent can call autonomously.</p>
+        <div class="mcp-grid" id="mcpTools"></div>
+        <p style="margin-top: 1rem; color: var(--text-dim); font-size: 0.85rem;">
+            MCP endpoints: <code>GET /mcp/tools</code> (list tools) · <code>POST /mcp/call</code> (call a tool)
+        </p>
+    </div>
+
+    <div class="footer">
+        <div class="container">
+            <p>ArmSight — Built for <a href="https://arm-ai-optimization-challenge.devpost.com/" target="_blank">Arm Create: AI Optimization Challenge</a> · Apache 2.0 License</p>
+            <p style="margin-top: 0.3rem;">Real ONNX runtime quantization · MCP server pattern · Arm64-optimized deployment</p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+        let currentFile = null;
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const results = document.getElementById('results');
+        const loader = document.getElementById('loader');
+        const loaderText = document.getElementById('loaderText');
+
+        // Drag & drop
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+        function handleFile(file) {
+            if (!file.name.endsWith('.onnx')) { alert('Please select an ONNX model file (.onnx)'); return; }
+            currentFile = file;
+            fileInfo.innerHTML = `✅ <strong>${file.name}</strong> — ${(file.size / 1024).toFixed(2)} KB`;
+            ['btnAnalyze', 'btnRecommend', 'btnQuantize', 'btnFull'].forEach(id => document.getElementById(id).disabled = false);
+            results.classList.remove('active');
+        }
+
+        // Action buttons
+        document.getElementById('btnAnalyze').onclick = () => runAction('analyze');
+        document.getElementById('btnRecommend').onclick = () => runAction('recommend');
+        document.getElementById('btnQuantize').onclick = () => runAction('quantize');
+        document.getElementById('btnFull').onclick = () => runAction('full');
+
+        // Example model
+        document.getElementById('btnExample').onclick = async () => {
+            loader.classList.add('active');
+            loaderText.textContent = 'Generating example ONNX model...';
+            results.classList.remove('active');
+            try {
+                // Create a small ONNX model in browser? No — call backend to generate one.
+                const resp = await fetch('/api/example-model');
+                const blob = await resp.blob();
+                currentFile = new File([blob], 'example_model.onnx', { type: 'application/octet-stream' });
+                handleFile(currentFile);
+            } catch (e) {
+                showResults(`<div class="card"><p style="color:var(--red)">Error: ${e.message}</p></div>`);
+            }
+            loader.classList.remove('active');
+        };
+
+        async function runAction(action) {
+            if (!currentFile) return;
+            loader.classList.add('active');
+            results.classList.remove('active');
+            const labels = {
+                analyze: 'Analyzing model architecture...',
+                recommend: 'Generating Arm64 recommendations...',
+                quantize: 'Applying INT8 quantization and benchmarking...',
+                full: 'Running full pipeline (analyze → quantize → benchmark → deploy)...'
+            };
+            loaderText.textContent = labels[action] || 'Processing...';
+
+            try {
+                const fd = new FormData();
+                fd.append('file', currentFile);
+                const resp = await fetch(`/api/${action}`, { method: 'POST', body: fd });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.detail || 'Request failed');
+                renderResults(action, data);
+            } catch (e) {
+                showResults(`<div class="card"><p style="color:var(--red)">Error: ${e.message}</p></div>`);
+            }
+            loader.classList.remove('active');
+        }
+
+        function showResults(html) {
+            results.innerHTML = html;
+            results.classList.add('active');
+        }
+
+        function renderResults(action, data) {
+            let html = '';
+            if (action === 'analyze') html = renderAnalysis(data);
+            else if (action === 'recommend') html = renderRecommendations(data);
+            else if (action === 'quantize') html = renderQuantization(data);
+            else if (action === 'full') html = renderFull(data);
+            showResults(html);
+        }
+
+        function renderAnalysis(d) {
+            const ops = d.operator_counts || {};
+            const opRows = Object.entries(ops).map(([op, cnt]) => `<tr><td class="metric-name">${op}</td><td>${cnt}</td></tr>`).join('');
+            return `
+                <h2 class="section-title">📊 Model Analysis</h2>
+                <div class="card">
+                    <h2><span class="icon">📐</span> Architecture Overview</h2>
+                    <div class="metrics-grid">
+                        <div class="metric"><div class="label">Model Size</div><div class="value accent">${d.file_size_human || 'N/A'}</div></div>
+                        <div class="metric"><div class="label">Total Parameters</div><div class="value">${(d.total_parameters || 0).toLocaleString()}</div></div>
+                        <div class="metric"><div class="label">Precision</div><div class="value yellow">${d.precision || 'N/A'}</div></div>
+                        <div class="metric"><div class="label">Operators</div><div class="value">${d.total_operators || 0} (${d.unique_operators || 0} unique)</div></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2><span class="icon">🔌</span> Input / Output</h2>
+                    <div class="metrics-grid">
+                        <div class="metric"><div class="label">Inputs</div><div class="value" style="font-size:1rem">${(d.input_names || []).join(', ') || 'N/A'}</div></div>
+                        <div class="metric"><div class="label">Outputs</div><div class="value" style="font-size:1rem">${(d.output_names || []).join(', ') || 'N/A'}</div></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2><span class="icon">⚙️</span> Operator Distribution</h2>
+                    <table class="comparison-table">${opRows}</table>
+                </div>
+            `;
+        }
+
+        function renderRecommendations(d) {
+            const recs = d.recommendations || [];
+            const summary = d.analysis_summary || {};
+            const recHtml = recs.map(r => `
+                <div class="rec ${(r.priority || '').toLowerCase()}">
+                    <div class="rec-header">
+                        <h3>${r.title}</h3>
+                        <span class="priority-tag ${(r.priority || '').toLowerCase()}">${r.priority || 'INFO'}</span>
+                    </div>
+                    <p>${r.description}</p>
+                    <div class="arm-benefit"><strong>Arm64 Benefit:</strong> ${r.arm_benefit}</div>
+                    <p style="margin-top:0.5rem"><strong>Size:</strong> ${r.estimated_size_reduction || 'N/A'} · <strong>Latency:</strong> ${r.estimated_latency_improvement || 'N/A'}</p>
+                </div>
+            `).join('');
+            return `
+                <h2 class="section-title">⚡ Arm64 Optimization Recommendations</h2>
+                <div class="card">
+                    <h2><span class="icon">🎯</span> Summary</h2>
+                    <div class="metrics-grid">
+                        <div class="metric"><div class="label">Optimizations Available</div><div class="value accent">${summary.arm64_optimizations_available || 0}</div></div>
+                        <div class="metric"><div class="label">High Priority</div><div class="value yellow">${summary.high_priority_count || 0}</div></div>
+                        <div class="metric"><div class="label">Est. Size Reduction</div><div class="value green" style="font-size:1.2rem">${summary.estimated_total_size_reduction || 'N/A'}</div></div>
+                        <div class="metric"><div class="label">Est. Latency Improvement</div><div class="value green" style="font-size:1.2rem">${summary.estimated_total_latency_improvement || 'N/A'}</div></div>
+                    </div>
+                </div>
+                <div class="card"><h2><span class="icon">📋</span> Detailed Recommendations</h2>${recHtml}</div>
+            `;
+        }
+
+        function renderQuantization(d) {
+            const q = d.quantization || {};
+            const b = d.benchmark_comparison || {};
+            const imp = b.ok ? '' : '<p style="color:var(--text-dim)">Benchmark comparison unavailable.</p>';
+            let benchRows = '';
+            if (b.ok) {
+                const o = b.original || {}, qa = b.quantized || {};
+                benchRows = `
+                    <tr><td class="metric-name">Latency (mean)</td><td>${o.latency_ms_mean} ms</td><td>${qa.latency_ms_mean} ms</td><td class="improvement">${b.latency_improvement_pct > 0 ? '↓' : '↑'} ${Math.abs(b.latency_improvement_pct)}%</td></tr>
+                    <tr><td class="metric-name">Latency (p95)</td><td>${o.latency_ms_p95} ms</td><td>${qa.latency_ms_p95} ms</td><td>-</td></tr>
+                    <tr><td class="metric-name">Throughput</td><td>${o.throughput_ops_per_sec} ops/s</td><td>${qa.throughput_ops_per_sec} ops/s</td><td class="improvement">${b.throughput_improvement_pct > 0 ? '↑' : '↓'} ${Math.abs(b.throughput_improvement_pct)}%</td></tr>
+                    <tr><td class="metric-name">Speedup Factor</td><td>1.00x</td><td>${b.speedup_factor}x</td><td class="improvement">${b.speedup_factor > 1 ? '⚡' : ''}</td></tr>
+                `;
+            }
+            const sizeReduction = q.size_reduction_ratio || 0;
+            return `
+                <h2 class="section-title">🔧 INT8 Quantization Results</h2>
+                <div class="card">
+                    <h2><span class="icon">📉</span> Size Reduction (REAL Measurement)</h2>
+                    <div class="metrics-grid">
+                        <div class="metric"><div class="label">Original Size</div><div class="value">${(q.original_size_bytes / 1024).toFixed(2)} KB</div></div>
+                        <div class="metric"><div class="label">Quantized Size</div><div class="value">${((q.quantized_size_bytes || 0) / 1024).toFixed(2)} KB</div></div>
+                        <div class="metric"><div class="label">Reduction</div><div class="value green">${sizeReduction}%</div></div>
+                        <div class="metric"><div class="label">Factor</div><div class="value accent">${q.size_reduction_factor}x</div></div>
+                    </div>
+                    ${q.error ? `<p style="color:var(--red);margin-top:1rem">Error: ${q.error}</p>` : '<p style="color:var(--green);margin-top:1rem">✅ Real INT8 dynamic quantization applied successfully using onnxruntime.quantization</p>'}
+                </div>
+                ${b.ok ? `
+                <div class="card">
+                    <h2><span class="icon">⚡</span> Benchmark Comparison (REAL Inference Timing)</h2>
+                    <table class="comparison-table">
+                        <tr><th>Metric</th><th>Original (FP32)</th><th>Quantized (INT8)</th><th>Change</th></tr>
+                        ${benchRows}
+                    </table>
+                </div>` : imp}
+            `;
+        }
+
+        function renderFull(d) {
+            const s = d.summary || {};
+            const mi = s.measurable_improvements || {};
+            const recs = s.recommendations || [];
+            const steps = d.steps || [];
+            const deploy = d.deployment_package || {};
+            const stepHtml = steps.map(st => `<div class="metric"><div class="label">${st.step}</div><div class="value ${st.status === 'ok' ? 'green' : 'yellow'}" style="font-size:1rem">${st.status.toUpperCase()}</div></div>`).join('');
+            const recCount = recs.length;
+            let deployFiles = '';
+            if (deploy.files_content) {
+                deployFiles = Object.entries(deploy.files_content).map(([name, content]) => `
+                    <div style="margin-top:1rem"><strong style="color:var(--accent)">${name}</strong><pre><code>${escapeHtml(content)}</code></pre></div>
+                `).join('');
+            }
+            return `
+                <h2 class="section-title">🚀 Full Pipeline Results</h2>
+                <div class="card">
+                    <h2><span class="icon">📋</span> Pipeline Steps</h2>
+                    <div class="metrics-grid">${stepHtml}</div>
+                </div>
+                ${mi.size_before_bytes ? `
+                <div class="card">
+                    <h2><span class="icon">📈</span> Measurable Improvements</h2>
+                    <div class="metrics-grid">
+                        <div class="metric"><div class="label">Size Before</div><div class="value">${(mi.size_before_bytes / 1024).toFixed(2)} KB</div></div>
+                        <div class="metric"><div class="label">Size After</div><div class="value">${(mi.size_after_bytes / 1024).toFixed(2)} KB</div></div>
+                        <div class="metric"><div class="label">Size Reduction</div><div class="value green">${mi.size_reduction_pct}% (${mi.size_reduction_factor}x)</div></div>
+                        ${mi.latency_before_ms ? `<div class="metric"><div class="label">Latency Improvement</div><div class="value accent">${((1 - mi.latency_after_ms / mi.latency_before_ms) * 100).toFixed(1)}%</div></div>` : ''}
+                    </div>
+                </div>` : ''}
+                ${recCount ? `
+                <div class="card">
+                    <h2><span class="icon">⚡</span> Recommendations (${recCount})</h2>
+                    ${recs.map(r => `<div class="rec ${(r.priority||'').toLowerCase()}"><div class="rec-header"><h3>${r.title}</h3><span class="priority-tag ${(r.priority||'').toLowerCase()}">${r.priority||'INFO'}</span></div><p>${r.description}</p></div>`).join('')}
+                </div>` : ''}
+                ${deploy.ok ? `
+                <div class="card">
+                    <h2><span class="icon">🐳</span> Deployment Package (Arm64-optimized)</h2>
+                    <p style="color:var(--text-dim)">Files: ${deploy.files.join(', ')}</p>
+                    <p style="color:var(--green);margin-top:0.5rem">✅ Dockerfile targets linux/arm64 · FastAPI inference server · benchmark script</p>
+                    ${deployFiles}
+                </div>` : ''}
+            `;
+        }
+
+        function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+        // Load MCP tools
+        async function loadMcpTools() {
+            try {
+                const resp = await fetch('/mcp/tools');
+                const data = await resp.json();
+                const tools = data.tools || [];
+                document.getElementById('mcpTools').innerHTML = tools.map(t => `
+                    <div class="mcp-tool">
+                        <h3>${t.name}()</h3>
+                        <p>${t.description}</p>
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('mcpTools').innerHTML = '<p style="color:var(--text-dim)">Failed to load MCP tools.</p>';
+            }
+        }
+        loadMcpTools();
+    </script>
+</body>
+</html>
