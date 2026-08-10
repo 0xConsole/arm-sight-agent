@@ -185,6 +185,6 @@ Apache License 2.0 — see [LICENSE](LICENSE).
 
 ## 🔗 Links
 
-- **Live Demo:** [Deployed on Vercel](https://arm-sight-agent.vercel.app)
+- **Live Demo:** [https://arm-sight-agent.vercel.app](https://arm-sight-agent.vercel.app)
 - **GitHub:** [github.com/0xConsole/arm-sight-agent](https://github.com/0xConsole/arm-sight-agent)
 - **Challenge:** [Arm Create: AI Optimization Challenge](https://arm-ai-optimization-challenge.devpost.com/)
