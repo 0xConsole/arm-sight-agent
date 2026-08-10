@@ -195,6 +195,15 @@ def _full_pipeline(model_path: str) -> dict[str, Any]:
     # Step 5: Generate deployment package
     deploy_dir = os.path.join(tempfile.gettempdir(), "armsight_deploy")
     deploy = generate_deployment_package(quantized_path if quant_result.get("ok") else model_path, deploy_dir)
+    # Read generated files for display (so the UI can show the package contents)
+    files_content: dict[str, str] = {}
+    if deploy.get("ok"):
+        for fname in ["Dockerfile", "server.py", "benchmark.py", "docker-compose.yml"]:
+            fpath = os.path.join(deploy_dir, fname)
+            if os.path.exists(fpath):
+                with open(fpath, "r") as fh:
+                    files_content[fname] = fh.read()
+    deploy["files_content"] = files_content
     result["steps"].append({"step": "generate_deployment", "status": "ok" if deploy.get("ok") else "error"})
     result["deployment_package"] = deploy
 
